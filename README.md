@@ -74,8 +74,18 @@ VITE_TOKEN_COST_PER_1K_OUTPUT=0.003
 #### 本番環境
 
 GitHub Secretsで以下の環境変数を設定：
-- `GEMINI_API_KEY`: 実際のGemini APIキー
-- `API_BASE_URL`: バックエンドAPIのURL
+
+**フロントエンド用（必須）:**
+- `VITE_GEMINI_API_KEY`: 実際のGemini APIキー
+- `VITE_API_BASE_URL`: バックエンドAPIのURL
+
+**フロントエンド用（オプション）:**
+- `VITE_TOKEN_COST_PER_1K_INPUT`: 入力トークンコスト（デフォルト: 0.00075）
+- `VITE_TOKEN_COST_PER_1K_OUTPUT`: 出力トークンコスト（デフォルト: 0.003）
+
+**バックエンド用（参考）:**
+- `GEMINI_API_KEY`: バックエンド用Gemini APIキー
+- `YOUTUBE_API_KEY`: YouTube Data API v3キー
 
 ### 開発サーバーの起動
 
