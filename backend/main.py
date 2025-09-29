@@ -12,6 +12,12 @@ import uuid
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 YOUTUBE_API_KEY = os.environ.get('YOUTUBE_API_KEY')
 
+# APIキーの存在確認
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is required")
+if not YOUTUBE_API_KEY:
+    raise ValueError("YOUTUBE_API_KEY environment variable is required")
+
 # YouTube Data API v3 クライアント（環境変数が設定されている場合のみ）
 youtube = None
 if YOUTUBE_API_KEY:

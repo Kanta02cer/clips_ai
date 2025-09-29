@@ -124,7 +124,10 @@ export default function App() {
     const [error, setError] = useState('');
 
     const callGeminiAPI = async (prompt, options = { isJson: false }) => {
-        const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyBnBhi9abL2VULcXSO12WSw47UE7T5xRIs';
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error('Gemini API key is not configured');
+        }
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
         
         const payload = {
