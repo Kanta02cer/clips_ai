@@ -26,9 +26,9 @@ if YOUTUBE_API_KEY:
 # Google Cloud Storage クライアント（環境変数が設定されている場合のみ）
 storage_client = None
 
-def call_gemini_api(prompt, is_json=False):
+def call_gemini_api(prompt, is_json=False, model="gemini-2.5-flash-preview-05-20"):
     """Gemini APIを呼び出す関数"""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
     
     payload = {
         "contents": [{"parts": [{"text": prompt}]}]
@@ -197,4 +197,122 @@ def analyze_video(request):
             'success': False,
             'error': str(error)
         }), 500, headers)
+
+@functions_framework.http
+def generate_video_clips(request):
+    """動画切り抜きを生成するCloud Function"""
+    
+    # CORS設定
+    if request.method == 'OPTIONS':
+        headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '3600'
+        }
+        return ('', 204, headers)
+    
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+    }
+    
+    try:
+        # リクエストボディを取得
+        request_json = request.get_json()
+        if not request_json:
+            return (json.dumps({'error': 'リクエストボディが必要です'}), 400, headers)
+        
+        video_url = request_json.get('videoUrl')
+        video_topic = request_json.get('videoTopic', '')
+        max_clips = request_json.get('maxClips', 5)
+        target_audience = request_json.get('targetAudience', '全般')
+        tone = request_json.get('tone', '親しみやすく')
+        min_duration = request_json.get('minDuration', 30)
+        max_duration = request_json.get('maxDuration', 120)
+        
+        if not video_url:
+            return (json.dumps({'error': '動画URLが必要です'}), 400, headers)
+        
+        # YouTube動画IDを抽出
+        video_id = extract_video_id(video_url)
+        if not video_id:
+            return (json.dumps({'error': '有効なYouTube URLではありません'}), 400, headers)
+        
+        # 動画情報を取得
+        video_info = get_video_info(video_id)
+        
+        # Gemini 2.5 Proで動画の切り抜きポイントを分析
+        analysis_prompt = f"""
+        以下のYouTube動画を分析し、SNS向けの切り抜き動画を生成するための最適なタイミングを特定してください。
+
+        動画情報:
+        - タイトル: {video_info['title']}
+        - 説明: {video_info['description'][:1000]}...
+        - 動画の長さ: {video_info['duration']}秒
+        - チャンネル: {video_info['channel_title']}
+        - 動画テーマ: {video_topic}
+
+        要件:
+        - 切り抜き本数: {max_clips}本
+        - ターゲット層: {target_audience}
+        - トーン: {tone}
+        - 切り抜き時間: {min_duration}-{max_duration}秒
+
+        以下のJSON形式で回答してください:
+        {{
+            "clips": [
+                {{
+                    "startTime": 開始時間（秒）,
+                    "duration": 長さ（秒）,
+                    "title": "キャッチーなタイトル",
+                    "subtitle": "サブタイトル",
+                    "description": "説明文（2-3文）",
+                    "hashtags": ["ハッシュタグ1", "ハッシュタグ2", "ハッシュタグ3"],
+                    "reason": "この切り抜きが選ばれた理由"
+                }}
+            ]
+        }}
+        """
+        
+        # Gemini 2.5 Proを使用して分析
+        analysis_result = call_gemini_api(analysis_prompt, is_json=True, model="gemini-2.5-pro")
+        
+        if not analysis_result:
+            raise Exception("AI分析に失敗しました")
+        
+        clips_data = json.loads(analysis_result)
+        
+        # 結果を整理
+        result = {
+            'success': True,
+            'video_info': video_info,
+            'clips': clips_data.get('clips', []),
+            'message': f'{len(clips_data.get("clips", []))}個の切り抜き案を生成しました'
+        }
+        
+        return (json.dumps(result), 200, headers)
+        
+    except Exception as error:
+        print(f"Error in generate_video_clips: {error}")
+        return (json.dumps({
+            'success': False,
+            'error': str(error)
+        }), 500, headers)
+
+# ルーティング用のメイン関数
+@functions_framework.http
+def main(request):
+    """メインルーティング関数"""
+    path = request.path
+    
+    if path == '/analyze-video' or path == '/':
+        return analyze_video(request)
+    elif path == '/generate-video-clips':
+        return generate_video_clips(request)
+    else:
+        return (json.dumps({'error': 'Endpoint not found'}), 404, {
+            'Access-Control-Allow-Origin': '*',
+            'Content-Type': 'application/json'
+        })
 

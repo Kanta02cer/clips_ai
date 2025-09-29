@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import VideoUpload from './components/VideoUpload';
 import ClipDetailModal from './components/ClipDetailModal';
-import { analyzeVideo, generateClips, getDownloadUrl } from './services/api';
+import { analyzeVideo, generateClips, getDownloadUrl, generateVideoClips } from './services/api';
 
 // --- Helper Components ---
 
@@ -224,60 +224,84 @@ export default function App() {
         setError('');
 
         try {
-            // 1. AIでコンテンツ生成
-            let clipsData = [];
-            if (isTitleGenActive) {
-                setStatusMessage('✨ AIが投稿コンテンツを生成中...');
-                const prompt = `動画テーマ「${videoTopic}」に関するSNS投稿案を${maxClips}個生成してください。ターゲット層は「${targetAudience}」、投稿のトーンは「${tone}」でお願いします。各投稿には、キャッチーな「タイトル」、補足の「サブタイトル」、エンゲージメントを高める2-3文の「説明文」、そして関連性の高い「ハッシュタグ」を5個含めてください。`;
-                try {
-                    const responseText = await callGeminiAPI(prompt, { isJson: true });
-                    if(responseText) {
-                        clipsData = JSON.parse(responseText);
-                    }
-                } catch (e) {
-                    console.error("Failed to parse clips data:", e);
-                    clipsData = Array(maxClips).fill(null).map((_, i) => ({title: `生成タイトル ${i+1}`, subtitle: '生成サブタイトル', description: 'AIが生成した説明文です。', hashtags: ['#サンプル']}));
+            // Gemini 2.5 Proを使用した動画切り抜き生成
+            if (videoUrl && activeTab === 'url') {
+                setStatusMessage('🤖 Gemini 2.5 Proが動画を分析中...');
+                
+                const videoData = {
+                    videoUrl: videoUrl,
+                    videoTopic: videoTopic,
+                    maxClips: maxClips,
+                    targetAudience: targetAudience,
+                    tone: tone,
+                    minDuration: minDuration,
+                    maxDuration: maxDuration
+                };
+
+                const result = await generateVideoClips(videoData);
+                
+                if (result.success) {
+                    setGeneratedClips(result.clips);
+                    setStatusMessage('✅ AI切り抜き生成完了！');
+                } else {
+                    throw new Error(result.error || '切り抜き生成に失敗しました');
                 }
             } else {
-                 clipsData = Array(maxClips).fill(null).map((_, i) => ({title: `クリップ ${i+1}`, subtitle: '', description: '', hashtags: []}));
-            }
+                // 従来の方法（アップロード動画用）
+                let clipsData = [];
+                if (isTitleGenActive) {
+                    setStatusMessage('✨ AIが投稿コンテンツを生成中...');
+                    const prompt = `動画テーマ「${videoTopic}」に関するSNS投稿案を${maxClips}個生成してください。ターゲット層は「${targetAudience}」、投稿のトーンは「${tone}」でお願いします。各投稿には、キャッチーな「タイトル」、補足の「サブタイトル」、エンゲージメントを高める2-3文の「説明文」、そして関連性の高い「ハッシュタグ」を5個含めてください。`;
+                    try {
+                        const responseText = await callGeminiAPI(prompt, { isJson: true });
+                        if(responseText) {
+                            clipsData = JSON.parse(responseText);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse clips data:", e);
+                        clipsData = Array(maxClips).fill(null).map((_, i) => ({title: `生成タイトル ${i+1}`, subtitle: '生成サブタイトル', description: 'AIが生成した説明文です。', hashtags: ['#サンプル']}));
+                    }
+                } else {
+                     clipsData = Array(maxClips).fill(null).map((_, i) => ({title: `クリップ ${i+1}`, subtitle: '', description: '', hashtags: []}));
+                }
 
-            // 2. 動画クリップ生成（アップロードされた動画がある場合）
-            if (uploadedVideo) {
-                setStatusMessage('🎬 動画クリップを生成中...');
-                
-                // クリップの時間をランダムに生成
-                const videoDuration = uploadedVideo.duration;
-                const clipsWithTiming = clipsData.map((clip, index) => {
-                    const startTime = Math.random() * (videoDuration - maxDuration);
-                    const duration = minDuration + Math.random() * (maxDuration - minDuration);
+                // 動画クリップ生成（アップロードされた動画がある場合）
+                if (uploadedVideo) {
+                    setStatusMessage('🎬 動画クリップを生成中...');
                     
-                    return {
+                    // クリップの時間をランダムに生成
+                    const videoDuration = uploadedVideo.duration;
+                    const clipsWithTiming = clipsData.map((clip, index) => {
+                        const startTime = Math.random() * (videoDuration - maxDuration);
+                        const duration = minDuration + Math.random() * (maxDuration - minDuration);
+                        
+                        return {
+                            ...clip,
+                            startTime: Math.max(0, startTime),
+                            duration: Math.min(duration, videoDuration - startTime)
+                        };
+                    });
+
+                    const result = await generateClips(uploadedVideo.path, clipsWithTiming, {
+                        minDuration,
+                        maxDuration,
+                        fontFamily,
+                        fontWeight,
+                        mainTitle,
+                        subtitle
+                    });
+
+                    // ダウンロードURLを追加
+                    const clipsWithDownload = result.clips.map(clip => ({
                         ...clip,
-                        startTime: Math.max(0, startTime),
-                        duration: Math.min(duration, videoDuration - startTime)
-                    };
-                });
+                        downloadUrl: clip.downloadUrl || getDownloadUrl(clip.outputPath?.split('/').pop())
+                    }));
 
-                const result = await generateClips(uploadedVideo.path, clipsWithTiming, {
-                    minDuration,
-                    maxDuration,
-                    fontFamily,
-                    fontWeight,
-                    mainTitle,
-                    subtitle
-                });
-
-                // ダウンロードURLを追加
-                const clipsWithDownload = result.clips.map(clip => ({
-                    ...clip,
-                    downloadUrl: clip.downloadUrl || getDownloadUrl(clip.outputPath?.split('/').pop())
-                }));
-
-                setGeneratedClips(clipsWithDownload);
-            } else {
-                // URL分析のみの場合
-                setGeneratedClips(clipsData);
+                    setGeneratedClips(clipsWithDownload);
+                } else {
+                    // URL分析のみの場合
+                    setGeneratedClips(clipsData);
+                }
             }
             
             setIsProcessing(false);

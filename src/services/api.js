@@ -62,3 +62,20 @@ export const getDownloadUrl = (filename) => {
     const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || 'http://localhost:3001';
     return `${baseUrl}/download/${filename}`;
 };
+
+// AI動画切り抜き生成
+export const generateVideoClips = async (videoData) => {
+    const response = await fetch(`${API_BASE_URL}/generate-video-clips`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(videoData),
+    });
+
+    if (!response.ok) {
+        throw new Error(`切り抜き生成に失敗しました: ${response.status}`);
+    }
+
+    return await response.json();
+};
