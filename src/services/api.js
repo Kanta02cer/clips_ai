@@ -1,6 +1,6 @@
 // API呼び出し用のサービス関数
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://your-cloud-function-url-here';
 
 // 動画URL分析
 export const analyzeVideo = async (videoUrl) => {
