@@ -53,14 +53,29 @@ pip install -r requirements.txt
 
 ### 環境変数の設定
 
-`.env`ファイルを作成し、以下の環境変数を設定：
+**重要**: セキュリティのため、APIキーは環境変数で管理してください。
+
+#### 開発環境
+
+`.env.local`ファイルを作成し、以下の環境変数を設定：
 
 ```env
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
+# Gemini API Key (必須)
+VITE_GEMINI_API_KEY=your_actual_gemini_api_key_here
+
+# API Base URL
 VITE_API_BASE_URL=http://localhost:8080
+
+# Token Estimation Settings (USD per 1K tokens)
 VITE_TOKEN_COST_PER_1K_INPUT=0.00075
 VITE_TOKEN_COST_PER_1K_OUTPUT=0.003
 ```
+
+#### 本番環境
+
+GitHub Secretsで以下の環境変数を設定：
+- `GEMINI_API_KEY`: 実際のGemini APIキー
+- `API_BASE_URL`: バックエンドAPIのURL
 
 ### 開発サーバーの起動
 
